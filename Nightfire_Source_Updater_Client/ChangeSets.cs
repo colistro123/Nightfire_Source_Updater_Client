@@ -37,13 +37,13 @@ namespace Nightfire_Source_Updater_Client
                 return false;
             }
 
-            PopulateArrFromIntegrityFile(chSetName, type);
-
-            return true;
+            return PopulateArrFromIntegrityFile(chSetName, type);
         }
 
-        public void PopulateArrFromIntegrityFile(string chSetName, CHANGESET_TYPES chSetType)
+        public bool PopulateArrFromIntegrityFile(string chSetName, CHANGESET_TYPES chSetType)
         {
+            if (!XMLMgr.IsXMLValid(chSetName)) return false;
+
             StringBuilder result = new StringBuilder();
             XElement loaded = XElement.Load(chSetName);
             int countChSet = loaded.Descendants("ContentFile").Count();
@@ -57,6 +57,7 @@ namespace Nightfire_Source_Updater_Client
 
                 AddToChangeSet(chSetType, hash, filename, type, filesize, mode, countChSet);
             }
+            return true;
         }
 
         public bool WasDirDeleted(string dirPath)

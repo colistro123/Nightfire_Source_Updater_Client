@@ -17,6 +17,7 @@ namespace Nightfire_Source_Updater_Client
             //NewLineOnAttributes = true
         };
 
+        /* Everything below this line needs to be massively refactored, this looks horrible. */
         public Dictionary<String, String> ReadFromCacheFile(string file)
         {
             StringBuilder result = new StringBuilder();
@@ -30,6 +31,28 @@ namespace Nightfire_Source_Updater_Client
                 cacheList.Add(id, version);
             }
             return cacheList;
+        }
+
+        public void GetIDAndVersionCachesXML(string cacheName, out string outID, out string outVersion)
+        {
+            Dictionary<String, String> cacheList = ReadFromCacheFile(cacheName); //Read our caches file, provided it is there
+            var firstElement = cacheList.FirstOrDefault();
+            outID = firstElement.Key;
+            outVersion = firstElement.Value;
+            return;
+        }
+
+        public static bool IsXMLValid(string file)
+        {
+            bool valid = false;
+            try
+            {
+                XDocument xd1 = new XDocument();
+                xd1 = XDocument.Load(file);
+                valid = true;
+            }
+            catch (XmlException exception){}
+            return valid;
         }
     }
 }

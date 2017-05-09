@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Diagnostics;
 
@@ -16,6 +14,8 @@ namespace Nightfire_Source_Updater_Client
         public bool DebugMode = true;
         public string MainDownloadDir = String.Empty;
         public string ExpectedModDir = "steamapps/sourcemods/nightfiresource";
+        public string MainCachesXMLFileURI = "http://nfsource.scrolldown.org/caches.xml";
+        public string LocalCachesXMLName = "caches.xml";
 
         public void BeginChecks()
         {
@@ -30,26 +30,66 @@ namespace Nightfire_Source_Updater_Client
                     MainDownloadDir = expectedDir; //They didn't put it in the sourcemods folder so workaround it
             }
 
-            if (!File.Exists(MainDownloadDir + "caches.xml"))
+            if (!File.Exists(MainDownloadDir + LocalCachesXMLName))
             {
-                WebClient client = DownloadFile(MainDownloadDir, "caches.xml"); //Download it
-                client.DownloadProgressChanged += (o, e) =>
-                {
-                    GUIRendering.UpdateDownloadProgress(e, "caches.xml");
-                };
-                client.DownloadFileCompleted += (o, e) =>
-                {
-                    beginIntegrityChecks();
-                };
+                downloadCachesXMLFileAndStartIntegrityChecks(LocalCachesXMLName);
             }
             else
             {
+                Main.CurrentForm.ChangeLabelText("Found caches.xml, checking for updates...");
+                var xmlFuncs = new XMLMgr();
+                string outID, outVersion;
+                int ServerVer, ClientVer;
+                xmlFuncs.GetIDAndVersionCachesXML(MainCachesXMLFileURI, out outID, out outVersion);
+
+                if (int.TryParse(outVersion, out ServerVer))
+                {
+                    xmlFuncs.GetIDAndVersionCachesXML(LocalCachesXMLName, out outID, out outVersion);
+                    if (int.TryParse(outVersion, out ClientVer))
+                    {
+                        /*
+                         * Evaluate two cases: 
+                            1 - they're greater than the server and therefor they somehow got desync'd or we can't trust them since they modified caches.xml.
+                            2 - They're on and older version.
+                        */
+                        if (ServerVer > ClientVer || ClientVer > ServerVer)
+                        {
+                            if (ClientVer > ServerVer)
+                                Main.CurrentForm.ChangeLabelText("Out of sync with the server, re-syncing");
+                            else
+                                Main.CurrentForm.ChangeLabelText(String.Format("Found a newer version at version {0}, will try to download...", ServerVer));
+
+
+                            downloadCachesXMLFile(LocalCachesXMLName); //Replace the old one
+                            DownloadChangeSetFileAndBeginChecks(String.Format("changeset_{0}.xml", ServerVer), ChangeSets.CHANGESET_TYPES.CHANGESET_NEW);
+                        }
+                        else
+                        {
+                            Main.CurrentForm.ChangeLabelText("You're up to date!");
+                        }
+                    }
+                }
                 //Get the caches.xml version and compare against the one on the server
                 //If the one on the server is greater
                 //Download the new changeset
                 //Begin Updating
 
             }
+        }
+
+        public void downloadCachesXMLFile(string filename)
+        {
+            WebClient client = DownloadFile(MainDownloadDir, filename); //Download it
+            client.DownloadProgressChanged += (o, e) =>
+            {
+                GUIRendering.UpdateDownloadProgress(e, filename);
+            };
+        }
+
+        public void downloadCachesXMLFileAndStartIntegrityChecks(string filename)
+        {
+            downloadCachesXMLFile(filename);
+            beginIntegrityChecks();
         }
 
         public static void BootstrapperUpdateAddedToList(string chSetName, int chSetCountAdded, int chSetCountTotal, string fileName, string hash)
@@ -140,6 +180,8 @@ namespace Nightfire_Source_Updater_Client
 
             if (!curChangeSet.changeSetMgr.LoadChangesetFile("nightfiresource", xmlchangesetfile, type))
             {
+                MessageBox.Show(String.Format("Fatal: Couldn't load {0}, try deleting caches.xml and try again.", xmlchangesetfile));
+                Application.Exit();
                 return;
             }
 
@@ -199,15 +241,11 @@ namespace Nightfire_Source_Updater_Client
         {
             var xmlFuncs = new XMLMgr();
             string outID, outVersion;
-
-            Dictionary<String, String> dirToParse = xmlFuncs.ReadFromCacheFile("caches.xml"); //Read our caches file, provided it is there
-            var firstElement = dirToParse.FirstOrDefault();
-            outID = firstElement.Key;
-            outVersion = firstElement.Value;
+            xmlFuncs.GetIDAndVersionCachesXML(LocalCachesXMLName, out outID, out outVersion);
 
             if (outID.Length != 0)
             {
-                DownloadIntegrityFileAndBeginChecks();
+                DownloadChangeSetFileAndBeginChecks("integrity.xml", ChangeSets.CHANGESET_TYPES.CHANGESET_INTEGRITY_CURRENT);
                 return;
             }
             return;
@@ -216,16 +254,16 @@ namespace Nightfire_Source_Updater_Client
         //Once it's downloaded
         //Download the latest integrity.xml file from the server
         //Start downloading all the files but verify integrity while going through the changeset so we don't download stuff that isn't needed
-        public void DownloadIntegrityFileAndBeginChecks()
+        public void DownloadChangeSetFileAndBeginChecks(string filename, ChangeSets.CHANGESET_TYPES type)
         {
-            WebClient client = DownloadFile(MainDownloadDir, "nightfiresource-changesets/integrity.xml"); //Download it
+            WebClient client = DownloadFile(MainDownloadDir, "nightfiresource-changesets/" + filename); //Download it
             client.DownloadProgressChanged += (o, e) =>
             {
-                GUIRendering.UpdateDownloadProgress(e, "nightfiresource-changesets/integrity.xml");
+                GUIRendering.UpdateDownloadProgress(e, "nightfiresource-changesets/" + filename);
             };
             client.DownloadFileCompleted += (o, e) =>
             {
-                readChangesetAndBeginDownloading("integrity.xml", ChangeSets.CHANGESET_TYPES.CHANGESET_INTEGRITY_CURRENT);
+                readChangesetAndBeginDownloading(filename, type);
             };
         }
 
