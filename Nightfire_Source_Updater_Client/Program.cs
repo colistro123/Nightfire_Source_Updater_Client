@@ -9,6 +9,19 @@ namespace Nightfire_Source_Updater_Client
 {
     static class Program
     {
+
+        public static bool IsDebugRelease
+        {
+            get
+            {
+#if DEBUG
+                return true;
+#else
+                return false;
+#endif
+            }
+        }
+
         /// <summary>
         /// The main entry point for the application.
         /// </summary>

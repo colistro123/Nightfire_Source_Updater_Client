@@ -11,24 +11,23 @@ namespace Nightfire_Source_Updater_Client
 {
     class Bootstrapper
     {
-        public bool DebugMode = true;
         public static string MainDownloadDir = String.Empty;
 
-        public const string ExpectedModDir = "steamapps/sourcemods/nightfiresource";
+        public const string ExpectedModDir = "steamapps/sourcemods/nightfiresource/";
         public const string MainCachesXMLFileURI = "http://nfsource.mov.re/caches.xml";
         public const string LocalCachesXMLName = "caches.xml";
 
         public void BeginChecks()
         {
             var SteamworksMgr = new SteamWorksMgr();
-            string expectedDir = Path.GetFullPath(String.Format("{0}/{1}/", SteamworksMgr.getSteamInstallPath(), ExpectedModDir));
-            string curDir = Path.GetFullPath(Directory.GetCurrentDirectory() + "/data/");
+            string expectedDir = Path.GetFullPath(Path.Combine(SteamworksMgr.getSteamInstallPath(), ExpectedModDir));
+            string curDir = Path.GetFullPath(Program.IsDebugRelease ? Path.Combine(Directory.GetCurrentDirectory(), "data") : Directory.GetCurrentDirectory());
+
             MainDownloadDir = curDir;
 
             if (curDir != expectedDir)
             {
-                if (!DebugMode)
-                    MainDownloadDir = expectedDir; //They didn't put it in the sourcemods folder so workaround it
+                MainDownloadDir = expectedDir; //They didn't put it in the sourcemods folder so workaround it
             }
 
             if (!File.Exists(XMLMgr.GetCachesLocalFullPath(LocalCachesXMLName)))
