@@ -298,7 +298,7 @@ namespace Nightfire_Source_Updater_Client
             }
 
             //Console.WriteLine("Added {0}:{1}:{2}:{3}.", GetChangeSetName(type), GetChangeSetCount(type), filename, hash);
-            Bootstrapper.BootstrapperUpdateAddedToList(GetChangeSetName(type), GetChangeSetCount(type), countMax, filename, hash);
+            Bootstrapper.BootstrapperUpdateAddedToList(GetChangeSetName(type), GetChangeSetCount(type), countMax, filename);
             return;
         }
 

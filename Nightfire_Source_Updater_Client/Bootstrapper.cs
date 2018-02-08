@@ -13,9 +13,10 @@ namespace Nightfire_Source_Updater_Client
     {
         public bool DebugMode = true;
         public string MainDownloadDir = String.Empty;
-        public string ExpectedModDir = "steamapps/sourcemods/nightfiresource";
-        public string MainCachesXMLFileURI = "http://nfsource.scrolldown.org/caches.xml";
-        public string LocalCachesXMLName = "caches.xml";
+
+        public const string ExpectedModDir = "steamapps/sourcemods/nightfiresource";
+        public const string MainCachesXMLFileURI = "http://nfsource.mov.re/caches.xml";
+        public const string LocalCachesXMLName = "caches.xml";
 
         public void BeginChecks()
         {
@@ -92,7 +93,7 @@ namespace Nightfire_Source_Updater_Client
             beginIntegrityChecks();
         }
 
-        public static void BootstrapperUpdateAddedToList(string chSetName, int chSetCountAdded, int chSetCountTotal, string fileName, string hash)
+        public static void BootstrapperUpdateAddedToList(string chSetName, int chSetCountAdded, int chSetCountTotal, string fileName)
         {
             double percentageF = ((chSetCountAdded * 1.0 / chSetCountTotal * 1.0) * 100.0);
             int percentage = (int)Math.Floor(percentageF + 0.5);
@@ -278,7 +279,7 @@ namespace Nightfire_Source_Updater_Client
             } catch(Exception ex){}
 
             WebClient client = new WebClient();
-            Uri ur = new Uri("http://nfsource.scrolldown.org/" + Uri.EscapeDataString(netFilePath));
+            Uri ur = new Uri("http://nfsource.mov.re/" + Uri.EscapeDataString(netFilePath));
             client.Credentials = new NetworkCredential("username", "password");
             client.DownloadProgressChanged += WebClientDownloadProgressChanged;
             client.DownloadFileCompleted += WebClientDownloadCompleted;
