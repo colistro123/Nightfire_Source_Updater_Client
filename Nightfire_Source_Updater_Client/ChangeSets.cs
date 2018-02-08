@@ -26,7 +26,7 @@ namespace Nightfire_Source_Updater_Client
 
         public string genSetName(string dirName, string fileName)
         {
-            return Path.GetFullPath(string.Format("{0}-changesets/{1}", dirName, fileName));
+            return Path.GetFullPath(string.Format("{0}/{1}-changesets/{2}", Bootstrapper.MainDownloadDir, dirName, fileName));
         }
         //Only for the integrity file
         public bool LoadChangesetFile(string projectName, string changesetFileName, CHANGESET_TYPES type)

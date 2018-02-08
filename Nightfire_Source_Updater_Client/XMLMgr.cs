@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -33,9 +34,14 @@ namespace Nightfire_Source_Updater_Client
             return cacheList;
         }
 
-        public void GetIDAndVersionCachesXML(string cacheName, out string outID, out string outVersion)
+        public static string GetCachesLocalFullPath(string cacheName)
         {
-            Dictionary<String, String> cacheList = ReadFromCacheFile(cacheName); //Read our caches file, provided it is there
+            return Path.Combine(Bootstrapper.MainDownloadDir, cacheName);
+        }
+
+        public void GetIDAndVersionCachesXML(string cachePath, out string outID, out string outVersion)
+        {
+            Dictionary<String, String> cacheList = ReadFromCacheFile(cachePath); //Read our caches file, provided it is there
             var firstElement = cacheList.FirstOrDefault();
             outID = firstElement.Key;
             outVersion = firstElement.Value;

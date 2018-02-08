@@ -12,7 +12,7 @@ namespace Nightfire_Source_Updater_Client
     class Bootstrapper
     {
         public bool DebugMode = true;
-        public string MainDownloadDir = String.Empty;
+        public static string MainDownloadDir = String.Empty;
 
         public const string ExpectedModDir = "steamapps/sourcemods/nightfiresource";
         public const string MainCachesXMLFileURI = "http://nfsource.mov.re/caches.xml";
@@ -22,7 +22,7 @@ namespace Nightfire_Source_Updater_Client
         {
             var SteamworksMgr = new SteamWorksMgr();
             string expectedDir = Path.GetFullPath(String.Format("{0}/{1}/", SteamworksMgr.getSteamInstallPath(), ExpectedModDir));
-            string curDir = Path.GetFullPath(Directory.GetCurrentDirectory() + "/");
+            string curDir = Path.GetFullPath(Directory.GetCurrentDirectory() + "/data/");
             MainDownloadDir = curDir;
 
             if (curDir != expectedDir)
@@ -31,7 +31,7 @@ namespace Nightfire_Source_Updater_Client
                     MainDownloadDir = expectedDir; //They didn't put it in the sourcemods folder so workaround it
             }
 
-            if (!File.Exists(MainDownloadDir + LocalCachesXMLName))
+            if (!File.Exists(XMLMgr.GetCachesLocalFullPath(LocalCachesXMLName)))
             {
                 downloadCachesXMLFileAndStartIntegrityChecks(LocalCachesXMLName);
             }
@@ -45,7 +45,7 @@ namespace Nightfire_Source_Updater_Client
 
                 if (int.TryParse(outVersion, out ServerVer))
                 {
-                    xmlFuncs.GetIDAndVersionCachesXML(LocalCachesXMLName, out outID, out outVersion);
+                    xmlFuncs.GetIDAndVersionCachesXML(XMLMgr.GetCachesLocalFullPath(LocalCachesXMLName), out outID, out outVersion);
                     if (int.TryParse(outVersion, out ClientVer))
                     {
                         /*
@@ -78,19 +78,23 @@ namespace Nightfire_Source_Updater_Client
             }
         }
 
-        public void downloadCachesXMLFile(string filename)
+        public WebClient downloadCachesXMLFile(string filename)
         {
             WebClient client = DownloadFile(MainDownloadDir, filename); //Download it
             client.DownloadProgressChanged += (o, e) =>
             {
                 GUIRendering.UpdateDownloadProgress(e, filename);
             };
+            return client;
         }
 
         public void downloadCachesXMLFileAndStartIntegrityChecks(string filename)
         {
-            downloadCachesXMLFile(filename);
-            beginIntegrityChecks();
+            WebClient client = downloadCachesXMLFile(filename);
+            client.DownloadFileCompleted += (o, e) =>
+            {
+                beginIntegrityChecks();
+            };
         }
 
         public static void BootstrapperUpdateAddedToList(string chSetName, int chSetCountAdded, int chSetCountTotal, string fileName)
@@ -242,7 +246,7 @@ namespace Nightfire_Source_Updater_Client
         {
             var xmlFuncs = new XMLMgr();
             string outID, outVersion;
-            xmlFuncs.GetIDAndVersionCachesXML(LocalCachesXMLName, out outID, out outVersion);
+            xmlFuncs.GetIDAndVersionCachesXML(XMLMgr.GetCachesLocalFullPath(LocalCachesXMLName), out outID, out outVersion);
 
             if (outID.Length != 0)
             {
