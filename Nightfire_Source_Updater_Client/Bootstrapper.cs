@@ -6,6 +6,8 @@ using System.Net;
 using System.Threading;
 using System.Windows.Forms;
 using System.Diagnostics;
+using IniParser;
+using IniParser.Model;
 
 namespace Nightfire_Source_Updater_Client
 {
@@ -20,15 +22,20 @@ namespace Nightfire_Source_Updater_Client
         public void BeginChecks()
         {
             var SteamworksMgr = new SteamWorksMgr();
-            string expectedDir = Path.GetFullPath(Path.Combine(SteamworksMgr.getSteamInstallPath(), ExpectedModDir));
-            string curDir = Path.GetFullPath(Program.IsDebugRelease ? Path.Combine(Directory.GetCurrentDirectory(), "data") : Directory.GetCurrentDirectory());
+            string expectedDir = 
+                Path.GetFullPath
+                (
+                        Program.IsDebugRelease ? 
+                        Path.Combine( Directory.GetCurrentDirectory(), "data\\") :
+                        Path.Combine( SteamworksMgr.getSteamInstallPath(), ExpectedModDir )
+                );
+            //string curDir = Path.GetFullPath(Program.IsDebugRelease ? Path.Combine(Directory.GetCurrentDirectory(), "data") : Directory.GetCurrentDirectory());
 
+            string curDir = Path.GetFullPath(Directory.GetCurrentDirectory());
             MainDownloadDir = curDir;
 
             if (curDir != expectedDir)
-            {
                 MainDownloadDir = expectedDir; //They didn't put it in the sourcemods folder so workaround it
-            }
 
             if (!File.Exists(XMLMgr.GetCachesLocalFullPath(LocalCachesXMLName)))
             {
@@ -50,7 +57,7 @@ namespace Nightfire_Source_Updater_Client
                         /*
                          * Evaluate two cases: 
                             1 - they're greater than the server and therefor they somehow got desync'd or we can't trust them since they modified caches.xml.
-                            2 - They're on and older version.
+                            2 - They're on an older version.
                         */
                         if (ServerVer > ClientVer || ClientVer > ServerVer)
                         {
@@ -150,7 +157,7 @@ namespace Nightfire_Source_Updater_Client
             if (!matches_hash)
             {
                 var locker = new object();
-                using (clientNew = DownloadFile(MainDownloadDir, item.filename))
+                using (clientNew = DownloadFile(MainDownloadDir, item.filename, "nightfire-source-master"))
                 {
                     {
                         lock (locker)
@@ -271,7 +278,7 @@ namespace Nightfire_Source_Updater_Client
             };
         }
 
-        public WebClient DownloadFile(string toMainTreeDir, string netFilePath)
+        public WebClient DownloadFile(string toMainTreeDir, string netFilePath, string channel = "")
         {
             string fullDlPath = netFilePath;
             fullDlPath = netFilePath.Replace("nightfiresource/", "");
@@ -282,7 +289,7 @@ namespace Nightfire_Source_Updater_Client
             } catch(Exception ex){}
 
             WebClient client = new WebClient();
-            Uri ur = new Uri("http://nfsource.mov.re/" + Uri.EscapeDataString(netFilePath));
+            Uri ur = new Uri("http://nfsource.mov.re/" + channel + "/" + Uri.EscapeDataString(netFilePath));
             client.Credentials = new NetworkCredential("username", "password");
             client.DownloadProgressChanged += WebClientDownloadProgressChanged;
             client.DownloadFileCompleted += WebClientDownloadCompleted;

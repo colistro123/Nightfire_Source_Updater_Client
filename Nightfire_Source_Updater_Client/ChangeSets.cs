@@ -54,6 +54,7 @@ namespace Nightfire_Source_Updater_Client
                 string filesize = level1Element.Attribute("filesize").Value;
                 string mode = level1Element.Attribute("mode").Value;
                 string type = level1Element.Attribute("type").Value;
+                string compressionType = level1Element.Attribute("compType").Value;
 
                 AddToChangeSet(chSetType, hash, filename, type, filesize, mode, countChSet);
             }
@@ -275,7 +276,8 @@ namespace Nightfire_Source_Updater_Client
             return;
         }
 
-        public void AddToChangeSet(CHANGESET_TYPES type, string hash, string filename, string filetype, string filesize, string mode, int countMax = 0)
+        //Todo: fix this function, so many useless parameters when all could be sent in a single structure e.g: ChangeSetC
+        public void AddToChangeSet(CHANGESET_TYPES type, string hash, string filename, string filetype, string filesize, string mode, int countMax = 0, string compType = Compressor.DEFAULT_COMPRESSION_TYPE)
         {
             ChangeSetC data = new ChangeSetC();
             data.hash = hash;
@@ -283,6 +285,7 @@ namespace Nightfire_Source_Updater_Client
             data.filetype = filetype;
             data.filesize = filesize;
             data.mode = mode;
+            data.compressionType = compType;
 
             switch (type)
             {
@@ -309,6 +312,7 @@ namespace Nightfire_Source_Updater_Client
             public string filetype { set; get; }
             public string filesize { set; get; }
             public string mode { set; get; }
+            public string compressionType { set; get; } /* compressionType extension, gz, zip, etc */
         }
 
         public static List<ChangeSetC> ChangeSetListIntegrityOld = new List<ChangeSetC>();
