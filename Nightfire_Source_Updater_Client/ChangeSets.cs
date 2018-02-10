@@ -225,6 +225,10 @@ namespace Nightfire_Source_Updater_Client
             }
             return result;
         }
+        public bool DoesFileHaveCompression(ChangeSetC chSet)
+        {
+            return chSet.compressionType != "0" ? true : false;
+        }
         public int GetChangeSetCount(CHANGESET_TYPES type)
         {
             int count = 0;
@@ -277,7 +281,7 @@ namespace Nightfire_Source_Updater_Client
         }
 
         //Todo: fix this function, so many useless parameters when all could be sent in a single structure e.g: ChangeSetC
-        public void AddToChangeSet(CHANGESET_TYPES type, string hash, string filename, string filetype, string filesize, string mode, int countMax = 0, string compType = Compressor.DEFAULT_COMPRESSION_TYPE)
+        public void AddToChangeSet(CHANGESET_TYPES type, string hash, string filename, string filetype, string filesize, string mode, int countMax = 0)
         {
             ChangeSetC data = new ChangeSetC();
             data.hash = hash;
@@ -285,7 +289,7 @@ namespace Nightfire_Source_Updater_Client
             data.filetype = filetype;
             data.filesize = filesize;
             data.mode = mode;
-            data.compressionType = compType;
+            data.compressionType = Compressor.getCompressionForFileOrDirType(filetype);
 
             switch (type)
             {

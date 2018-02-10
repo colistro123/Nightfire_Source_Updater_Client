@@ -22,14 +22,12 @@ namespace Nightfire_Source_Updater_Client
         public void BeginChecks()
         {
             var SteamworksMgr = new SteamWorksMgr();
-            string expectedDir = 
-                Path.GetFullPath
-                (
-                        Program.IsDebugRelease ? 
-                        Path.Combine( Directory.GetCurrentDirectory(), "data\\") :
-                        Path.Combine( SteamworksMgr.getSteamInstallPath(), ExpectedModDir )
-                );
-            //string curDir = Path.GetFullPath(Program.IsDebugRelease ? Path.Combine(Directory.GetCurrentDirectory(), "data") : Directory.GetCurrentDirectory());
+            string expectedDir = Path.GetFullPath
+            (
+                    Program.IsDebugRelease ? 
+                    Path.Combine( Directory.GetCurrentDirectory(), "data\\") :
+                    Path.Combine( SteamworksMgr.getSteamInstallPath(), ExpectedModDir )
+            );
 
             string curDir = Path.GetFullPath(Directory.GetCurrentDirectory());
             MainDownloadDir = curDir;
@@ -144,6 +142,17 @@ namespace Nightfire_Source_Updater_Client
             }
         }
 
+        public FileInfo getFileInfoData(string filePath)
+        {
+            filePath = filePath.Replace("nightfiresource/", "");
+            return new FileInfo($"{MainDownloadDir}{filePath}"); //Remove 'nightfiresource/' which is just part of the url path.
+        }
+        public void invokeDecompressFile(string filePath)
+        {
+            Decompressor.Decompress(getFileInfoData(filePath));
+            File.Delete(getFileInfoData(filePath).ToString());
+        }
+
         public void downloadFileIfLocalDiffers(ChangeSets chSet, ChangeSets.ChangeSetC item, string FilePath)
         {
             var hashFuncs = new Hashing();
@@ -154,10 +163,17 @@ namespace Nightfire_Source_Updater_Client
             bool matches_filename = (flags & ChangeSets.MatchesResult.matches_filename) != 0;
             WebClient clientNew;
 
+            //Evaluate if we should apply compression, this is kind of a lazy approach really, but it's simple I guess...
+            bool shouldApplyCompType = chSet.DoesFileHaveCompression(item);
+
+            //Replace the nightfiresource path with nothing since it's just leftover url stuff. Todo: Maybe just get rid of it altogether?
+            if (shouldApplyCompType)
+                item.filename = Compressor.getFilePathAndCompressionAppended(item.filename);
+
             if (!matches_hash)
             {
                 var locker = new object();
-                using (clientNew = DownloadFile(MainDownloadDir, item.filename, "nightfire-source-master"))
+                using (clientNew = DownloadFile(MainDownloadDir, item.filename, "nightfiresource-master"))
                 {
                     {
                         lock (locker)
@@ -169,6 +185,14 @@ namespace Nightfire_Source_Updater_Client
                             clientNew.DownloadFileCompleted += (o, e) =>
                             {
                                 Main.CurrentForm.ChangeLabelText("Downloaded File: \n" + item.filename);
+
+                                if (shouldApplyCompType)
+                                {
+                                    //Decompress it and delete it after
+                                    invokeDecompressFile(item.filename);
+                                    Main.CurrentForm.ChangeLabelText("Decompressed File: \n" + item.filename);
+                                }
+
                             };
                             Monitor.PulseAll(locker);
                         }
@@ -178,6 +202,14 @@ namespace Nightfire_Source_Updater_Client
             }
             else
             {
+                //Also cleanup after old gz files.
+                if (shouldApplyCompType)
+                {
+                    string fPath = getFileInfoData(item.filename).ToString();
+                    if (File.Exists(fPath))
+                        File.Delete(fPath);
+                }
+
                 Main.CurrentForm.ChangeLabelText("Passed integrity check for: \n" + item.filename);
             }
         }
@@ -216,7 +248,7 @@ namespace Nightfire_Source_Updater_Client
                             GUIRendering.UpdateChangesetProgressBar(curChangeSet);
 
                             //Replace the nightfiresource path with nothing since it's just leftover url stuff. Todo: Maybe just get rid of it altogether?
-                            string FilePath = MainDownloadDir + it.filename.Replace("nightfiresource/", "");
+                            string FilePath = $"{MainDownloadDir}{it.filename.Replace("nightfiresource/", "")}";
 
                             //Is this a directory or a file?
                             switch(it.filetype)
@@ -282,18 +314,24 @@ namespace Nightfire_Source_Updater_Client
         {
             string fullDlPath = netFilePath;
             fullDlPath = netFilePath.Replace("nightfiresource/", "");
-            toMainTreeDir = Path.GetFullPath(String.Format("{0}/{1}", toMainTreeDir, fullDlPath));
+            toMainTreeDir = Path.GetFullPath($"{toMainTreeDir}/{fullDlPath}");
 
             try {
                 new FileInfo(toMainTreeDir).Directory.Create();
             } catch(Exception ex){}
 
             WebClient client = new WebClient();
-            Uri ur = new Uri("http://nfsource.mov.re/" + channel + "/" + Uri.EscapeDataString(netFilePath));
+            channel = channel != "" ? channel : String.Empty;
+            Uri ur = new Uri($"http://nfsource.mov.re/{channel}/{Uri.EscapeDataString(netFilePath)}");
+
             client.Credentials = new NetworkCredential("username", "password");
             client.DownloadProgressChanged += WebClientDownloadProgressChanged;
             client.DownloadFileCompleted += WebClientDownloadCompleted;
             client.DownloadFileAsync(ur, toMainTreeDir);
+
+            if (Program.IsDebugRelease)
+                Console.WriteLine($"Downloading {netFilePath}...");
+
             return client;
         }
 

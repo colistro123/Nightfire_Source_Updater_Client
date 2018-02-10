@@ -55,6 +55,8 @@
   <ItemGroup>
     <Compile Include="Bootstrapper.cs" />
     <Compile Include="ChangeSets.cs" />
+    <Compile Include="Compressor.cs" />
+    <Compile Include="Decompressor.cs" />
     <Compile Include="DirectorySearch.cs" />
     <Compile Include="Main.cs">
       <SubType>Form</SubType>
