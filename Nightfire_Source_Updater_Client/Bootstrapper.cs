@@ -35,21 +35,29 @@ namespace Nightfire_Source_Updater_Client
             if (curDir != expectedDir)
                 MainDownloadDir = expectedDir; //They didn't put it in the sourcemods folder so workaround it
 
-            if (!File.Exists(XMLMgr.GetCachesLocalFullPath(LocalCachesXMLName)))
+            string localCachesFullPath = XMLMgr.GetCachesLocalFullPath(LocalCachesXMLName);
+
+            //Initialize XMLMgr and get the state
+            var xmlFuncs = new XMLMgr();
+
+
+            XMLMgr.XMLCorrectStates state = xmlFuncs.GetXMLFormatCorrectState(localCachesFullPath);
+
+            if (!File.Exists(localCachesFullPath) || state != XMLMgr.XMLCorrectStates.XML_STATE_FORMAT_VALID)
             {
                 downloadCachesXMLFileAndStartIntegrityChecks(LocalCachesXMLName);
             }
             else
             {
                 Main.CurrentForm.ChangeLabelText("Found caches.xml, checking for updates...");
-                var xmlFuncs = new XMLMgr();
+
                 string outID, outVersion;
                 int ServerVer, ClientVer;
-                xmlFuncs.GetIDAndVersionCachesXML(MainCachesXMLFileURI, out outID, out outVersion);
+                xmlFuncs.GetIDAndVersionCachesXML(MainCachesXMLFileURI, out outID, out outVersion); //Get the version on the server
 
                 if (int.TryParse(outVersion, out ServerVer))
                 {
-                    xmlFuncs.GetIDAndVersionCachesXML(XMLMgr.GetCachesLocalFullPath(LocalCachesXMLName), out outID, out outVersion);
+                    xmlFuncs.GetIDAndVersionCachesXML(localCachesFullPath, out outID, out outVersion); //Get the one on the client
                     if (int.TryParse(outVersion, out ClientVer))
                     {
                         /*
@@ -268,7 +276,7 @@ namespace Nightfire_Source_Updater_Client
 
                     }).Start();
                 }
-                catch (System.Exception ex)
+                catch (Exception ex)
                 {
                     Console.WriteLine(ex.Message);
                 }

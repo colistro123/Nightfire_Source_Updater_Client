@@ -25,11 +25,21 @@ namespace Nightfire_Source_Updater_Client
             var id = String.Empty;
             var version = String.Empty;
             Dictionary<String, String> cacheList = new Dictionary<string, string>();
-            foreach (XElement level1Element in XElement.Load(@file).Elements("Cache"))
+            if (File.Exists(file) || Utils.RemoteFileExists(file))
             {
-                id = level1Element.Attribute("ID").Value;
-                version = level1Element.Attribute("Version").Value;
-                cacheList.Add(id, version);
+                try
+                {
+                    foreach (XElement level1Element in XElement.Load(@file).Elements("Cache"))
+                    {
+                        id = level1Element.Attribute("ID").Value;
+                        version = level1Element.Attribute("Version").Value;
+                        cacheList.Add(id, version);
+                    }
+                } catch (Exception ex)
+                {
+                    Console.WriteLine($"Caches file is invalid or non-existing: {ex.ToString()}");
+                    cacheList.Add("-1", "invalid");
+                }
             }
             return cacheList;
         }
@@ -46,6 +56,39 @@ namespace Nightfire_Source_Updater_Client
             outID = firstElement.Key;
             outVersion = firstElement.Value;
             return;
+        }
+
+        public bool IsXMLFormatCorrect(string file)
+        {
+            GetIDAndVersionCachesXML(file, out string outID, out string outVersion); //Get the one on the client
+            return (outVersion != "invalid" && outID != "-1");
+        }
+
+        public enum XMLCorrectStates
+        {
+            XML_STATE_FORMAT_VALID = 1,
+            XML_STATE_FORMAT_INVALID = 2,
+            XML_STATE_FULLY_INVALID = 3,
+            XML_STATE_DOESNT_EXIST = 4
+        };
+
+        public XMLCorrectStates GetXMLFormatCorrectState(string file)
+        {
+
+            if (!File.Exists(file))
+                return XMLCorrectStates.XML_STATE_DOESNT_EXIST;
+
+            if (IsXMLValid(file))
+            {
+                if (IsXMLFormatCorrect(file))
+                    return XMLCorrectStates.XML_STATE_FORMAT_VALID;
+                else
+                    return XMLCorrectStates.XML_STATE_FORMAT_INVALID;
+            }
+            else
+            {
+                return XMLCorrectStates.XML_STATE_FULLY_INVALID;
+            }
         }
 
         public static bool IsXMLValid(string file)
