@@ -6,8 +6,6 @@ using System.Net;
 using System.Threading;
 using System.Windows.Forms;
 using System.Diagnostics;
-using IniParser;
-using IniParser.Model;
 
 namespace Nightfire_Source_Updater_Client
 {
@@ -16,17 +14,19 @@ namespace Nightfire_Source_Updater_Client
         public static string MainDownloadDir = String.Empty;
 
         public const string ExpectedModDir = "steamapps/sourcemods/nightfiresource/";
-        public const string MainCachesXMLFileURI = "http://nfsource.mov.re/caches.xml";
         public const string LocalCachesXMLName = "caches.xml";
+        public const string DefaultChannel = "nightfiresource-master";
+        public const string ConfFileName = "conf.cfg";
 
         public void BeginChecks()
         {
+            IniFileMgr.TryOpenFile(Path.Combine(MakeRelativeModPath(), ConfFileName));
             var SteamworksMgr = new SteamWorksMgr();
             string expectedDir = Path.GetFullPath
             (
                     Program.IsDebugRelease ? 
                     Path.Combine( Directory.GetCurrentDirectory(), "data\\") :
-                    Path.Combine( SteamworksMgr.getSteamInstallPath(), ExpectedModDir )
+                    MakeRelativeModPath()
             );
 
             string curDir = Path.GetFullPath(Directory.GetCurrentDirectory());
@@ -53,7 +53,7 @@ namespace Nightfire_Source_Updater_Client
 
                 string outID, outVersion;
                 int ServerVer, ClientVer;
-                xmlFuncs.GetIDAndVersionCachesXML(MainCachesXMLFileURI, out outID, out outVersion); //Get the version on the server
+                xmlFuncs.GetIDAndVersionCachesXML(getMainCachesXMLURI(), out outID, out outVersion); //Get the version on the server
 
                 if (int.TryParse(outVersion, out ServerVer))
                 {
@@ -78,6 +78,8 @@ namespace Nightfire_Source_Updater_Client
                         }
                         else
                         {
+                            //Todo, versions being the same don't mean anything, their internet could've disconnected.
+                            //Instead, keep track on how many files they've downloaded out of the grand total and resume downloads if files are missing.
                             Main.CurrentForm.ChangeLabelText("You're up to date!");
                         }
                     }
@@ -90,9 +92,20 @@ namespace Nightfire_Source_Updater_Client
             }
         }
 
+        /* makes a full path to the mod install directory */
+        static public string MakeRelativeModPath()
+        {
+            var SteamworksMgr = new SteamWorksMgr();
+            return Path.Combine(SteamworksMgr.getSteamInstallPath(), ExpectedModDir);
+        }
+
+        public string getMainCachesXMLURI()
+        {
+            return $"http://nfsource.mov.re/{IniFileMgr.prod_channel}/caches.xml";
+        }
         public WebClient downloadCachesXMLFile(string filename)
         {
-            WebClient client = DownloadFile(MainDownloadDir, filename); //Download it
+            WebClient client = DownloadFile(MainDownloadDir, filename, IniFileMgr.prod_channel, true); //Download it
             client.DownloadProgressChanged += (o, e) =>
             {
                 GUIRendering.UpdateDownloadProgress(e, filename);
@@ -181,7 +194,7 @@ namespace Nightfire_Source_Updater_Client
             if (!matches_hash)
             {
                 var locker = new object();
-                using (clientNew = DownloadFile(MainDownloadDir, item.filename, "nightfiresource-master"))
+                using (clientNew = DownloadFile(MainDownloadDir, item.filename, IniFileMgr.prod_channel))
                 {
                     {
                         lock (locker)
@@ -229,7 +242,7 @@ namespace Nightfire_Source_Updater_Client
             curChangeSet.changeSetMgr = new ChangeSets();
             curChangeSet.changeSetType = type;
 
-            if (!curChangeSet.changeSetMgr.LoadChangesetFile("nightfiresource", xmlchangesetfile, type))
+            if (!curChangeSet.changeSetMgr.LoadChangesetFile(IniFileMgr.prod_channel, xmlchangesetfile, type))
             {
                 MessageBox.Show(String.Format("Fatal: Couldn't load {0}, try deleting caches.xml and try again.", xmlchangesetfile));
                 Application.Exit();
@@ -307,10 +320,10 @@ namespace Nightfire_Source_Updater_Client
         //Start downloading all the files but verify integrity while going through the changeset so we don't download stuff that isn't needed
         public void DownloadChangeSetFileAndBeginChecks(string filename, ChangeSets.CHANGESET_TYPES type)
         {
-            WebClient client = DownloadFile(MainDownloadDir, "nightfiresource-changesets/" + filename); //Download it
+            WebClient client = DownloadFile(MainDownloadDir, $"{IniFileMgr.prod_channel}-changesets/{filename}", IniFileMgr.prod_channel, true); //Download it
             client.DownloadProgressChanged += (o, e) =>
             {
-                GUIRendering.UpdateDownloadProgress(e, "nightfiresource-changesets/" + filename);
+                GUIRendering.UpdateDownloadProgress(e, $"{IniFileMgr.prod_channel}-changesets/{filename}");
             };
             client.DownloadFileCompleted += (o, e) =>
             {
@@ -318,7 +331,7 @@ namespace Nightfire_Source_Updater_Client
             };
         }
 
-        public WebClient DownloadFile(string toMainTreeDir, string netFilePath, string channel = "")
+        public WebClient DownloadFile(string toMainTreeDir, string netFilePath, string channel = "", bool fromMainDir = false)
         {
             string fullDlPath = netFilePath;
             fullDlPath = netFilePath.Replace("nightfiresource/", "");
@@ -330,6 +343,7 @@ namespace Nightfire_Source_Updater_Client
 
             WebClient client = new WebClient();
             channel = channel != "" ? channel : String.Empty;
+            channel = !fromMainDir ? $"{channel}/{channel}" : $"{channel}";
             Uri ur = new Uri($"http://nfsource.mov.re/{channel}/{Uri.EscapeDataString(netFilePath)}");
 
             client.Credentials = new NetworkCredential("username", "password");
