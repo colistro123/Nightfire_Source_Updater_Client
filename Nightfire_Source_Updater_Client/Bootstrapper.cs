@@ -131,7 +131,7 @@ namespace Nightfire_Source_Updater_Client
                 Application.Exit();
                 return; //Because it still executes after Application.Exit which is normal...
             }
-
+            
             //This requires implementation in the builder... (Done)
             var hashFuncs = new Hashing();
             string exeHash = File.Exists(Application.ExecutablePath) ? hashFuncs.genFileHash(Application.ExecutablePath) : "0";
@@ -154,11 +154,12 @@ namespace Nightfire_Source_Updater_Client
                     invokeDecompressFile($"{Bootstrapper_Path}.{Compressor.DEFAULT_COMPRESSION_TYPE}", false);
 
                     //Now move the file to the current directory and delete the bootstrapper folder
-                    File.Move(Bootstrapper_Path, Path.Combine(curDir, "Nightfire_Source_Updater_Client.exe"));
+                    string absolutePathExe = Path.Combine(curDir, "Nightfire_Source_Updater_Client.exe");
+                    File.Move(Bootstrapper_Path, absolutePathExe);
                     Directory.Delete(Path.GetFullPath("bootstrapper"), true);
 
                     //restart the app
-                    Process.Start(Application.ExecutablePath);
+                    Process.Start(absolutePathExe);
 
                     Application.Exit();
                 };
@@ -366,7 +367,7 @@ namespace Nightfire_Source_Updater_Client
                         TimeSpan elapsedTime = watch.Elapsed;
                         Main.CurrentForm.ChangeLabelText(String.Format("Updates completed in: {0}:{1}:{2}.", elapsedTime.Hours, elapsedTime.Minutes, elapsedTime.Seconds));
 
-                        IniFileMgr.getIniFileMgrConfigPtr()["General"]["completedIntegrityChecks"].BoolValue = true;
+                        IniFileMgr.getIniFileMgrConfigPtr()["General"]["completedintegritychecks"].BoolValue = true;
                         IniFileMgr.SaveConfigFile();
                     }).Start();
                 }

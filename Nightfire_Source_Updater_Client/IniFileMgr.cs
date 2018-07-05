@@ -31,7 +31,7 @@ namespace Nightfire_Source_Updater_Client
         {
             getIniFileMgrConfigPtr();
             config["General"]["channel"].StringValue = Bootstrapper.DefaultChannel; //By default
-            config["General"]["completedIntegrityChecks"].BoolValue = false; //By default
+            config["General"]["completedintegritychecks"].BoolValue = false; //By default
             config.SaveToFile(fileName);
         }
         static public void SaveConfigFile()
@@ -44,7 +44,7 @@ namespace Nightfire_Source_Updater_Client
         static public void RefreshVarsFromFile()
         {
             prod_channel = getSection("General")["channel"].StringValue;
-            integritychecks_done = getSection("General")["completedIntegrityChecks"].BoolValue;
+            integritychecks_done = getSection("General")["completedintegritychecks"].BoolValue;
         }
 
         /* Reads a section from a file, assigns it to config and returns it */
@@ -59,7 +59,8 @@ namespace Nightfire_Source_Updater_Client
                 InitFile(fileName);
 
             //If for whatever reason the file is empty since it exists and they edited it...
-            if (ReadFromFile(fileName, "General")["channel"].StringValue == String.Empty)
+            int settingCount = ReadFromFile(fileName, "General").SettingCount;
+            if (settingCount < 2)
                 InitFile(fileName);
 
             //Read the vars from the file and set them
