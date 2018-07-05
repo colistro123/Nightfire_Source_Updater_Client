@@ -7,7 +7,10 @@ namespace Nightfire_Source_Updater_Client
     /* Not sure about this class name... */
     class IniFileMgr
     {
+        public const string ConfFileName = "conf.cfg";
         static public string prod_channel { get; set; }
+        static public bool integritychecks_done { get; set; }
+
         static public Configuration config;
 
         /* Create (if null) or get the config instance */
@@ -28,8 +31,22 @@ namespace Nightfire_Source_Updater_Client
         {
             getIniFileMgrConfigPtr();
             config["General"]["channel"].StringValue = Bootstrapper.DefaultChannel; //By default
+            config["General"]["completedIntegrityChecks"].BoolValue = false; //By default
             config.SaveToFile(fileName);
         }
+        static public void SaveConfigFile()
+        {
+            getIniFileMgrConfigPtr();
+            config.SaveToFile(ConfFileName);
+            RefreshVarsFromFile();
+        }
+
+        static public void RefreshVarsFromFile()
+        {
+            prod_channel = getSection("General")["channel"].StringValue;
+            integritychecks_done = getSection("General")["completedIntegrityChecks"].BoolValue;
+        }
+
         /* Reads a section from a file, assigns it to config and returns it */
         static public Section ReadFromFile(string FileName, string section)
         {
@@ -45,7 +62,8 @@ namespace Nightfire_Source_Updater_Client
             if (ReadFromFile(fileName, "General")["channel"].StringValue == String.Empty)
                 InitFile(fileName);
 
-            prod_channel = getSection("General")["channel"].StringValue;
+            //Read the vars from the file and set them
+            RefreshVarsFromFile();
         }
     }
 }

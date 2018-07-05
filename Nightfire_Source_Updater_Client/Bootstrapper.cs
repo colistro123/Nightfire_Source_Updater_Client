@@ -6,6 +6,7 @@ using System.Net;
 using System.Threading;
 using System.Windows.Forms;
 using System.Diagnostics;
+using SharpConfig;
 
 namespace Nightfire_Source_Updater_Client
 {
@@ -13,14 +14,15 @@ namespace Nightfire_Source_Updater_Client
     {
         public static string MainDownloadDir = String.Empty;
 
+        public const string Files_Base_URI = "http://nfsource.mov.re";
         public const string ExpectedModDir = "steamapps/sourcemods/nightfiresource/";
         public const string LocalCachesXMLName = "caches.xml";
         public const string DefaultChannel = "nightfiresource-master";
-        public const string ConfFileName = "conf.cfg";
+        public const string Bootstrapper_Path = "bootstrapper/Nightfire_Source_Updater_Client.exe";
 
         public void BeginChecks()
         {
-            IniFileMgr.TryOpenFile(Path.Combine(MakeRelativeModPath(), ConfFileName));
+            IniFileMgr.TryOpenFile(Path.Combine(MakeRelativeModPath(), IniFileMgr.ConfFileName));
             var SteamworksMgr = new SteamWorksMgr();
             string expectedDir = Path.GetFullPath
             (
@@ -40,6 +42,8 @@ namespace Nightfire_Source_Updater_Client
             //Initialize XMLMgr and get the state
             var xmlFuncs = new XMLMgr();
 
+            //Check bootstrapper version
+            CheckBootstrapper(xmlFuncs);
 
             XMLMgr.XMLCorrectStates state = xmlFuncs.GetXMLFormatCorrectState(localCachesFullPath);
 
@@ -61,9 +65,10 @@ namespace Nightfire_Source_Updater_Client
                     if (int.TryParse(outVersion, out ClientVer))
                     {
                         /*
-                         * Evaluate two cases: 
+                         * Evaluate three cases: 
                             1 - they're greater than the server and therefor they somehow got desync'd or we can't trust them since they modified caches.xml.
                             2 - They're on an older version.
+                            3 - They never completed any integrity checks. (Internet dc'd, application (crashed?), etc)
                         */
                         if (ServerVer > ClientVer || ClientVer > ServerVer)
                         {
@@ -72,14 +77,21 @@ namespace Nightfire_Source_Updater_Client
                             else
                                 Main.CurrentForm.ChangeLabelText(String.Format("Found a newer version at version {0}, will try to download...", ServerVer));
 
-
-                            downloadCachesXMLFile(LocalCachesXMLName); //Replace the old one
-                            DownloadChangeSetFileAndBeginChecks(String.Format("changeset_{0}.xml", ServerVer), ChangeSets.CHANGESET_TYPES.CHANGESET_NEW);
+                            DownloadRemoteCachesXMLFile(ServerVer); 
                         }
                         else
                         {
                             //Todo, versions being the same don't mean anything, their internet could've disconnected.
                             //Instead, keep track on how many files they've downloaded out of the grand total and resume downloads if files are missing.
+
+                            //Temporarily doing this for now
+                            if (!IniFileMgr.integritychecks_done)
+                            {
+                                Main.CurrentForm.ChangeLabelText("Integrity checks were never completed.");
+                                DownloadRemoteCachesXMLFile(ServerVer);
+                                return;
+                            }
+
                             Main.CurrentForm.ChangeLabelText("You're up to date!");
                         }
                     }
@@ -92,6 +104,67 @@ namespace Nightfire_Source_Updater_Client
             }
         }
 
+        public void DownloadRemoteCachesXMLFile(int ServerVer)
+        {
+            downloadCachesXMLFile(LocalCachesXMLName); //Replace the old one
+            DownloadChangeSetFileAndBeginChecks(String.Format("changeset_{0}.xml", ServerVer), ChangeSets.CHANGESET_TYPES.CHANGESET_NEW);
+        }
+
+        public void CheckBootstrapper(XMLMgr xmlFuncs)
+        {
+            string outID, remoteExeHash;
+            string xmlURI = getBootstrapperCachesXMLURI();
+            string exePathOldExtension = $"{Application.ExecutablePath}.old"; //Append .old extension
+
+            if (File.Exists($"{Application.ExecutablePath}.dev")) //Don't update the bootstrapper
+                return;
+
+            //check for old exe's during startup
+            if (File.Exists(exePathOldExtension))
+                File.Delete(exePathOldExtension);
+
+            xmlFuncs.GetIDAndVersionCachesXML(xmlURI, out outID, out remoteExeHash); //Get the version on the server
+            
+            if (remoteExeHash == null) //It's not on the server and should be generated
+            {
+                MessageBox.Show($"Couldn't download/read the bootstrapper integrity file from: {xmlURI}", "Fatal Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                Application.Exit();
+                return; //Because it still executes after Application.Exit which is normal...
+            }
+
+            //This requires implementation in the builder... (Done)
+            var hashFuncs = new Hashing();
+            string exeHash = File.Exists(Application.ExecutablePath) ? hashFuncs.genFileHash(Application.ExecutablePath) : "0";
+            string curDir = Directory.GetCurrentDirectory();
+
+            if (exeHash != remoteExeHash)
+            {
+                //rename current exe to Nightfire_Source_Updater_Client.exe.old
+                File.Move(Application.ExecutablePath, exePathOldExtension); 
+
+                //download the new one
+                WebClient client = DownloadFile(curDir, $"{Bootstrapper_Path}.{Compressor.DEFAULT_COMPRESSION_TYPE}", IniFileMgr.prod_channel); //Download it
+                client.DownloadProgressChanged += (o, e) =>
+                {
+                    GUIRendering.UpdateDownloadProgress(e, $"{Bootstrapper_Path}.{Compressor.DEFAULT_COMPRESSION_TYPE}");
+                };
+                client.DownloadFileCompleted += (o, e) =>
+                {
+                    //extract it and delete the downloaded gz file
+                    invokeDecompressFile($"{Bootstrapper_Path}.{Compressor.DEFAULT_COMPRESSION_TYPE}", false);
+
+                    //Now move the file to the current directory and delete the bootstrapper folder
+                    File.Move(Bootstrapper_Path, Path.Combine(curDir, "Nightfire_Source_Updater_Client.exe"));
+                    Directory.Delete(Path.GetFullPath("bootstrapper"), true);
+
+                    //restart the app
+                    Process.Start(Application.ExecutablePath);
+
+                    Application.Exit();
+                };
+            }
+        }
+
         /* makes a full path to the mod install directory */
         static public string MakeRelativeModPath()
         {
@@ -101,8 +174,14 @@ namespace Nightfire_Source_Updater_Client
 
         public string getMainCachesXMLURI()
         {
-            return $"http://nfsource.mov.re/{IniFileMgr.prod_channel}/caches.xml";
+            return $"{Files_Base_URI}/{IniFileMgr.prod_channel}/caches.xml";
         }
+
+        public string getBootstrapperCachesXMLURI()
+        {
+            return $"{Files_Base_URI}/{IniFileMgr.prod_channel}/{IniFileMgr.prod_channel}/bootstrapper/caches.xml";
+        }
+
         public WebClient downloadCachesXMLFile(string filename)
         {
             WebClient client = DownloadFile(MainDownloadDir, filename, IniFileMgr.prod_channel, true); //Download it
@@ -163,15 +242,15 @@ namespace Nightfire_Source_Updater_Client
             }
         }
 
-        public FileInfo getFileInfoData(string filePath)
+        public FileInfo getFileInfoData(string filePath, bool toMainDownloadDir = true)
         {
             filePath = filePath.Replace("nightfiresource/", "");
-            return new FileInfo($"{MainDownloadDir}{filePath}"); //Remove 'nightfiresource/' which is just part of the url path.
+            return new FileInfo(Path.Combine(toMainDownloadDir ? MainDownloadDir : String.Empty, filePath)/*$"{MainDownloadDir}{filePath}"*/); //Remove 'nightfiresource/' which is just part of the url path.
         }
-        public void invokeDecompressFile(string filePath)
+        public void invokeDecompressFile(string filePath, bool toMainDownloadDir = true)
         {
-            Decompressor.Decompress(getFileInfoData(filePath));
-            File.Delete(getFileInfoData(filePath).ToString());
+            Decompressor.Decompress(getFileInfoData(filePath, toMainDownloadDir));
+            File.Delete(getFileInfoData(filePath, toMainDownloadDir).ToString());
         }
 
         public void downloadFileIfLocalDiffers(ChangeSets chSet, ChangeSets.ChangeSetC item, string FilePath)
@@ -287,6 +366,8 @@ namespace Nightfire_Source_Updater_Client
                         TimeSpan elapsedTime = watch.Elapsed;
                         Main.CurrentForm.ChangeLabelText(String.Format("Updates completed in: {0}:{1}:{2}.", elapsedTime.Hours, elapsedTime.Minutes, elapsedTime.Seconds));
 
+                        IniFileMgr.getIniFileMgrConfigPtr()["General"]["completedIntegrityChecks"].BoolValue = true;
+                        IniFileMgr.SaveConfigFile();
                     }).Start();
                 }
                 catch (Exception ex)
@@ -335,16 +416,16 @@ namespace Nightfire_Source_Updater_Client
         {
             string fullDlPath = netFilePath;
             fullDlPath = netFilePath.Replace("nightfiresource/", "");
-            toMainTreeDir = Path.GetFullPath($"{toMainTreeDir}/{fullDlPath}");
+            toMainTreeDir = Path.GetFullPath(Path.Combine(toMainTreeDir, fullDlPath));// $"{toMainTreeDir}/{fullDlPath}");
 
             try {
                 new FileInfo(toMainTreeDir).Directory.Create();
             } catch(Exception ex){}
 
             WebClient client = new WebClient();
-            channel = channel != "" ? channel : String.Empty;
+            //channel = channel != "" ? channel : String.Empty;
             channel = !fromMainDir ? $"{channel}/{channel}" : $"{channel}";
-            Uri ur = new Uri($"http://nfsource.mov.re/{channel}/{Uri.EscapeDataString(netFilePath)}");
+            Uri ur = new Uri($"{Files_Base_URI}/{channel}/{Uri.EscapeDataString(netFilePath)}");
 
             client.Credentials = new NetworkCredential("username", "password");
             client.DownloadProgressChanged += WebClientDownloadProgressChanged;
