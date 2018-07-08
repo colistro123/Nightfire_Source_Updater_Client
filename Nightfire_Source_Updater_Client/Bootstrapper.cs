@@ -87,12 +87,13 @@ namespace Nightfire_Source_Updater_Client
                             //Temporarily doing this for now
                             if (!IniFileMgr.integritychecks_done)
                             {
-                                Main.CurrentForm.ChangeLabelText("Integrity checks were never completed.");
+                                Main.CurrentForm.ChangeLabelText("Integrity checks were never completed... Checking integrity!");
                                 DownloadRemoteCachesXMLFile(ServerVer);
                                 return;
                             }
 
                             Main.CurrentForm.ChangeLabelText("You're up to date!");
+                            Main.CurrentForm.UpdateProgBar2(100); //w/e
                         }
                     }
                 }

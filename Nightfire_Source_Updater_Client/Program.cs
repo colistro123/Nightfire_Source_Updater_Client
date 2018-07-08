@@ -29,12 +29,6 @@ namespace Nightfire_Source_Updater_Client
         static void Main()
         {
             var steamWorksMgr = new SteamWorksMgr();
-            bool steamWorksStarted = steamWorksMgr.TryInit();
-            if (!steamWorksStarted)
-            {
-                MessageBox.Show("Error while trying to start Steamworks, please launch the Steam Client (if it's closed) or install it (if it's not installed).");
-                return;
-            }
 
             bool foundSteamDir = false;
             if (!steamWorksMgr.IsSDK2013Installed())
