@@ -6,6 +6,7 @@ using System.Net;
 using System.Threading;
 using System.Windows.Forms;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using SharpConfig;
 
 namespace Nightfire_Source_Updater_Client
@@ -341,13 +342,11 @@ namespace Nightfire_Source_Updater_Client
                     {
                         var watch = Stopwatch.StartNew();
 
+                        //Todo: re-write this so downloads are queued and downloaded as tasks
                         foreach (var item in ChangeSets.getAppropriateListForType(type).Select((value, i) => new { i, value }))
                         {
                             var it = item.value;
                             curChangeSet.curDataChecked = item.i;
-
-                            //Update the progress bar...
-                            GUIRendering.UpdateChangesetProgressBar(curChangeSet);
 
                             //Replace the nightfiresource path with nothing since it's just leftover url stuff. Todo: Maybe just get rid of it altogether?
                             string FilePath = $"{MainDownloadDir}{it.filename.Replace("nightfiresource/", "")}";
@@ -362,13 +361,19 @@ namespace Nightfire_Source_Updater_Client
                                     DoByFileEditMode(curChangeSet.changeSetMgr, it, FilePath);
                                     break;
                             }
+
+                            //Update the progress bar...
+                            GUIRendering.UpdateChangesetProgressBar(curChangeSet);
                         }
 
                         watch.Stop();
                         TimeSpan elapsedTime = watch.Elapsed;
                         Main.CurrentForm.ChangeLabelText(String.Format("Updates completed in: {0}:{1}:{2}.", elapsedTime.Hours, elapsedTime.Minutes, elapsedTime.Seconds));
 
-                        IniFileMgr.getIniFileMgrConfigPtr()["General"]["completedintegritychecks"].BoolValue = true;
+                        /* Always force integrity checks for now, until the above is fixed. Async downloads should be queued and waited for as a list of tasks, 
+                         * right now it's doing more than one download at once which causes this behaviour where it falsely completes integrity checks. */
+
+                        IniFileMgr.getIniFileMgrConfigPtr()["General"]["completedintegritychecks"].BoolValue = false; 
                         IniFileMgr.SaveConfigFile();
                     }).Start();
                 }
