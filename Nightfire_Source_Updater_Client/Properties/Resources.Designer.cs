@@ -59,15 +59,5 @@ namespace Nightfire_Source_Updater_Client.Properties {
                 resourceCulture = value;
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] Steamworks_NET {
-            get {
-                object obj = ResourceManager.GetObject("Steamworks_NET", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
     }
 }
