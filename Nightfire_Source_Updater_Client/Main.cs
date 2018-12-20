@@ -22,7 +22,7 @@ namespace Nightfire_Source_Updater_Client
         {
             CurrentForm = this;
             var bootStrapper = new Bootstrapper();
-            bootStrapper.BeginChecks();
+            bootStrapper.BeginChecks().Wait(); //async
         }
 
         public void ChangeLabelText(string text)

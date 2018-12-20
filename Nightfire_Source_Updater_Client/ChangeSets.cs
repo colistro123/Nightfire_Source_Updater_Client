@@ -10,11 +10,35 @@ namespace Nightfire_Source_Updater_Client
 {
     class ChangeSets
     {
+        private static ChangeSets classPtr = null; //Initialize to null by default
+        public static string mainChangeSetDir = String.Empty;
+
         public enum CHANGESET_TYPES
         {
             CHANGESET_INTEGRITY_OLD = 0, //If it's an old integrity changeset we're loading
             CHANGESET_NEW = 1,
             CHANGESET_INTEGRITY_CURRENT = 2,
+            CHANGESET_DL_QUEUE = 3,
+        }
+
+        //Use this to access the class pointer / allocate, this is kind of like a Singleton
+        public static ChangeSets getChangeSetsClassPtr(string mainDir = "")
+        {
+            if (classPtr == null)
+            {
+                classPtr = new ChangeSets();
+            }
+            return classPtr;
+        }
+
+        public ChangeSets()
+        {
+            classPtr = this; //Set class ptr to this
+        }
+
+        public void setMainChangeSetDir(string dirName)
+        {
+            mainChangeSetDir = dirName;
         }
 
         public class ChangeSetIterationProgress
@@ -26,7 +50,7 @@ namespace Nightfire_Source_Updater_Client
 
         public string genSetName(string dirName, string fileName)
         {
-            return Path.GetFullPath(string.Format("{0}/{1}-changesets/{2}", Bootstrapper.MainDownloadDir, dirName, fileName));
+            return Path.GetFullPath($"{Bootstrapper.MainDownloadDir}/{dirName}-changesets/{fileName}");
         }
         //Only for the integrity file
         public bool LoadChangesetFile(string projectName, string changesetFileName, CHANGESET_TYPES type)
@@ -171,6 +195,9 @@ namespace Nightfire_Source_Updater_Client
                 case CHANGESET_TYPES.CHANGESET_INTEGRITY_CURRENT:
                     curList = ChangeSetListIntegrity;
                     break;
+                case CHANGESET_TYPES.CHANGESET_DL_QUEUE:
+                    curList = ChangeSetListDLQueue;
+                    break;
             }
             return curList;
         }
@@ -245,6 +272,10 @@ namespace Nightfire_Source_Updater_Client
                 case CHANGESET_TYPES.CHANGESET_INTEGRITY_CURRENT:
                     count = ChangeSetListIntegrity.Count();
                     break;
+
+                case CHANGESET_TYPES.CHANGESET_DL_QUEUE:
+                    count = ChangeSetListDLQueue.Count();
+                    break;
             }
             return count;
         }
@@ -263,6 +294,10 @@ namespace Nightfire_Source_Updater_Client
 
                 case CHANGESET_TYPES.CHANGESET_INTEGRITY_CURRENT:
                     name = "CHANGESET_INTEGRITY_CURRENT";
+                    break;
+
+                case CHANGESET_TYPES.CHANGESET_DL_QUEUE:
+                    name = "CHANGESET_DL_QUEUE";
                     break;
             }
             return name;
@@ -302,6 +337,9 @@ namespace Nightfire_Source_Updater_Client
                 case CHANGESET_TYPES.CHANGESET_INTEGRITY_CURRENT:
                     ChangeSetListIntegrity.Add(data);
                     break;
+                case CHANGESET_TYPES.CHANGESET_DL_QUEUE:
+                    ChangeSetListDLQueue.Add(data);
+                    break;
             }
 
             //Console.WriteLine("Added {0}:{1}:{2}:{3}.", GetChangeSetName(type), GetChangeSetCount(type), filename, hash);
@@ -322,7 +360,7 @@ namespace Nightfire_Source_Updater_Client
         public static List<ChangeSetC> ChangeSetListIntegrityOld = new List<ChangeSetC>();
         public static List<ChangeSetC> ChangeSetListNew = new List<ChangeSetC>();
         public static List<ChangeSetC> ChangeSetListIntegrity = new List<ChangeSetC>();
-
+        public static List<ChangeSetC> ChangeSetListDLQueue = new List<ChangeSetC>();
 
         public class DeletedDirsC
         {

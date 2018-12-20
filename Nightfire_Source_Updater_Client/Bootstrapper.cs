@@ -20,9 +20,11 @@ namespace Nightfire_Source_Updater_Client
         public const string LocalCachesXMLName = "caches.xml";
         public const string DefaultChannel = "nightfiresource-master";
         public const string Bootstrapper_Path = "bootstrapper/Nightfire_Source_Updater_Client.exe";
+        private static ChangeSets BootStrapperChSetInst = null;
 
-        public void BeginChecks()
+        public async Task BeginChecks()
         {
+            BootStrapperChSetInst = ChangeSets.getChangeSetsClassPtr();
             IniFileMgr.TryOpenFile(Path.Combine(MakeRelativeModPath(), IniFileMgr.ConfFileName));
             var SteamworksMgr = new SteamWorksMgr();
             string expectedDir = Path.GetFullPath
@@ -44,13 +46,13 @@ namespace Nightfire_Source_Updater_Client
             var xmlFuncs = new XMLMgr();
 
             //Check bootstrapper version
-            CheckBootstrapper(xmlFuncs);
+            await CheckBootstrapper(xmlFuncs);
 
             XMLMgr.XMLCorrectStates state = xmlFuncs.GetXMLFormatCorrectState(localCachesFullPath);
 
             if (!File.Exists(localCachesFullPath) || state != XMLMgr.XMLCorrectStates.XML_STATE_FORMAT_VALID)
             {
-                downloadCachesXMLFileAndStartIntegrityChecks(LocalCachesXMLName);
+                await downloadCachesXMLFileAndStartIntegrityChecks(LocalCachesXMLName);
             }
             else
             {
@@ -76,9 +78,9 @@ namespace Nightfire_Source_Updater_Client
                             if (ClientVer > ServerVer)
                                 Main.CurrentForm.ChangeLabelText("Out of sync with the server, re-syncing");
                             else
-                                Main.CurrentForm.ChangeLabelText(String.Format("Found a newer version at version {0}, will try to download...", ServerVer));
+                                Main.CurrentForm.ChangeLabelText($"Found a newer version at version {ServerVer}, will try to download...");
 
-                            DownloadRemoteCachesXMLFile(ServerVer); 
+                            await DownloadRemoteCachesXMLFile(ServerVer); 
                         }
                         else
                         {
@@ -89,7 +91,7 @@ namespace Nightfire_Source_Updater_Client
                             if (!IniFileMgr.integritychecks_done)
                             {
                                 Main.CurrentForm.ChangeLabelText("Integrity checks were never completed... Checking integrity!");
-                                DownloadRemoteCachesXMLFile(ServerVer);
+                                await DownloadRemoteCachesXMLFile(ServerVer);
                                 return;
                             }
 
@@ -104,15 +106,16 @@ namespace Nightfire_Source_Updater_Client
                 //Begin Updating
 
             }
+            await Task.FromResult(0);
         }
 
-        public void DownloadRemoteCachesXMLFile(int ServerVer)
+        public async Task DownloadRemoteCachesXMLFile(int ServerVer)
         {
-            downloadCachesXMLFile(LocalCachesXMLName); //Replace the old one
-            DownloadChangeSetFileAndBeginChecks(String.Format("changeset_{0}.xml", ServerVer), ChangeSets.CHANGESET_TYPES.CHANGESET_NEW);
+            await downloadCachesXMLFile(LocalCachesXMLName); //Replace the old one
+            await DownloadChangeSetFileAndBeginChecks($"changeset_{ServerVer}.xml", ChangeSets.CHANGESET_TYPES.CHANGESET_NEW);
         }
 
-        public void CheckBootstrapper(XMLMgr xmlFuncs)
+        public async Task CheckBootstrapper(XMLMgr xmlFuncs)
         {
             string outID, remoteExeHash;
             string xmlURI = getBootstrapperCachesXMLURI();
@@ -145,7 +148,7 @@ namespace Nightfire_Source_Updater_Client
                 File.Move(Application.ExecutablePath, exePathOldExtension); 
 
                 //download the new one
-                WebClient client = DownloadFile(curDir, $"{Bootstrapper_Path}.{Compressor.DEFAULT_COMPRESSION_TYPE}", IniFileMgr.prod_channel); //Download it
+                WebClient client = await DownloadFile(curDir, $"{Bootstrapper_Path}.{Compressor.DEFAULT_COMPRESSION_TYPE}", IniFileMgr.prod_channel); //Download it
                 client.DownloadProgressChanged += (o, e) =>
                 {
                     GUIRendering.UpdateDownloadProgress(e, $"{Bootstrapper_Path}.{Compressor.DEFAULT_COMPRESSION_TYPE}");
@@ -166,6 +169,7 @@ namespace Nightfire_Source_Updater_Client
                     Application.Exit();
                 };
             }
+            await Task.FromResult(0);
         }
 
         /* makes a full path to the mod install directory */
@@ -185,27 +189,31 @@ namespace Nightfire_Source_Updater_Client
             return $"{Files_Base_URI}/{IniFileMgr.prod_channel}/{IniFileMgr.prod_channel}/bootstrapper/caches.xml";
         }
 
-        public WebClient downloadCachesXMLFile(string filename)
+        public async Task<WebClient> downloadCachesXMLFile(string filename)
         {
-            WebClient client = DownloadFile(MainDownloadDir, filename, IniFileMgr.prod_channel, true); //Download it
+            WebClient client = await DownloadFile(MainDownloadDir, filename, IniFileMgr.prod_channel, true); //Download it
             client.DownloadProgressChanged += (o, e) =>
             {
                 GUIRendering.UpdateDownloadProgress(e, filename);
             };
+            await Task.FromResult(0);
             return client;
         }
 
-        public void downloadCachesXMLFileAndStartIntegrityChecks(string filename)
+        public async Task downloadCachesXMLFileAndStartIntegrityChecks(string filename)
         {
-            WebClient client = downloadCachesXMLFile(filename);
-            client.DownloadFileCompleted += (o, e) =>
+            WebClient client = await downloadCachesXMLFile(filename);
+            client.DownloadFileCompleted += async(o, e) =>
             {
-                beginIntegrityChecks();
+                await beginIntegrityChecks();
             };
         }
 
         public static void BootstrapperUpdateAddedToList(string chSetName, int chSetCountAdded, int chSetCountTotal, string fileName)
         {
+            if (chSetCountTotal == 0) //Don't run this if we've no total since some functions don't pass it
+                return;
+
             double percentageF = ((chSetCountAdded * 1.0 / chSetCountTotal * 1.0) * 100.0);
             int percentage = (int)Math.Floor(percentageF + 0.5);
             Main.CurrentForm.UpdateProgBar2(percentage);
@@ -218,7 +226,7 @@ namespace Nightfire_Source_Updater_Client
             {
                 case "add":
                 case "edit":
-                    downloadFileIfLocalDiffers(chSet, item, FilePath);
+                    addFileToDLQueueFileIfLocalDiffers(chSet, item, FilePath);
                     break;
                 case "delete":
                     if (File.Exists(FilePath))
@@ -256,7 +264,7 @@ namespace Nightfire_Source_Updater_Client
             File.Delete(getFileInfoData(filePath, toMainDownloadDir).ToString());
         }
 
-        public void downloadFileIfLocalDiffers(ChangeSets chSet, ChangeSets.ChangeSetC item, string FilePath)
+        public void addFileToDLQueueFileIfLocalDiffers(ChangeSets chSet, ChangeSets.ChangeSetC item, string FilePath)
         {
             var hashFuncs = new Hashing();
             string SHA1Hash = File.Exists(FilePath) ? hashFuncs.genFileHash(FilePath) : "0"; //Generate our sha1 file hash which we'll use later on
@@ -264,7 +272,6 @@ namespace Nightfire_Source_Updater_Client
             ChangeSets.MatchesResult flags = chSet.DoesCurCHSetFileHashMatchFileInDir(item, MainDownloadDir, FilePath, SHA1Hash);
             bool matches_hash = (flags & ChangeSets.MatchesResult.matches_hash) != 0;
             bool matches_filename = (flags & ChangeSets.MatchesResult.matches_filename) != 0;
-            WebClient clientNew;
 
             //Evaluate if we should apply compression, this is kind of a lazy approach really, but it's simple I guess...
             bool shouldApplyCompType = chSet.DoesFileHaveCompression(item);
@@ -275,33 +282,7 @@ namespace Nightfire_Source_Updater_Client
 
             if (!matches_hash)
             {
-                var locker = new object();
-                using (clientNew = DownloadFile(MainDownloadDir, item.filename, IniFileMgr.prod_channel))
-                {
-                    {
-                        lock (locker)
-                        {
-                            clientNew.DownloadProgressChanged += (sender1, e1) =>
-                            {
-                                GUIRendering.UpdateDownloadProgress(e1, item.filename);
-                            };
-                            clientNew.DownloadFileCompleted += (o, e) =>
-                            {
-                                Main.CurrentForm.ChangeLabelText("Downloaded File: \n" + item.filename);
-
-                                if (shouldApplyCompType)
-                                {
-                                    //Decompress it and delete it after
-                                    invokeDecompressFile(item.filename);
-                                    Main.CurrentForm.ChangeLabelText("Decompressed File: \n" + item.filename);
-                                }
-
-                            };
-                            Monitor.PulseAll(locker);
-                        }
-                    }
-                }
-                clientNew.Dispose();
+                BootStrapperChSetInst.AddToChangeSet(ChangeSets.CHANGESET_TYPES.CHANGESET_DL_QUEUE, item.hash, item.filename, item.filetype, item.filesize, "download");
             }
             else
             {
@@ -318,7 +299,7 @@ namespace Nightfire_Source_Updater_Client
         }
 
         /* This function can be used to read and download the game contents from any of the integrity or changeset files. */
-        public void readChangesetAndBeginDownloading(string xmlchangesetfile, ChangeSets.CHANGESET_TYPES type)
+        public async Task readChangesetAndBeginDownloading(string xmlchangesetfile, ChangeSets.CHANGESET_TYPES type)
         {
             var curChangeSet = new ChangeSets.ChangeSetIterationProgress();
             curChangeSet.changeSetMgr = new ChangeSets();
@@ -326,7 +307,7 @@ namespace Nightfire_Source_Updater_Client
 
             if (!curChangeSet.changeSetMgr.LoadChangesetFile(IniFileMgr.prod_channel, xmlchangesetfile, type))
             {
-                MessageBox.Show(String.Format("Fatal: Couldn't load {0}, try deleting caches.xml and try again.", xmlchangesetfile));
+                MessageBox.Show($"Fatal: Couldn't load {xmlchangesetfile}, try deleting caches.xml and try again.");
                 Application.Exit();
                 return;
             }
@@ -337,45 +318,76 @@ namespace Nightfire_Source_Updater_Client
             {
                 try
                 {
-                    //Make a thread since this will block the gui thread...
-                    new Thread(() =>
+                    var watch = Stopwatch.StartNew();
+
+                    //Todo: re-write this so downloads are queued and downloaded as tasks
+                    foreach (var item in ChangeSets.getAppropriateListForType(type).Select((value, i) => new { i, value }))
                     {
-                        var watch = Stopwatch.StartNew();
+                        var it = item.value;
+                        curChangeSet.curDataChecked = item.i;
 
-                        //Todo: re-write this so downloads are queued and downloaded as tasks
-                        foreach (var item in ChangeSets.getAppropriateListForType(type).Select((value, i) => new { i, value }))
+                        //Replace the nightfiresource path with nothing since it's just leftover url stuff. Todo: Maybe just get rid of it altogether?
+                        string FilePath = $"{MainDownloadDir}{it.filename.Replace("nightfiresource/", "")}";
+
+                        //Is this a directory or a file?
+                        switch(it.filetype)
                         {
-                            var it = item.value;
-                            curChangeSet.curDataChecked = item.i;
-
-                            //Replace the nightfiresource path with nothing since it's just leftover url stuff. Todo: Maybe just get rid of it altogether?
-                            string FilePath = $"{MainDownloadDir}{it.filename.Replace("nightfiresource/", "")}";
-
-                            //Is this a directory or a file?
-                            switch(it.filetype)
-                            {
-                                case "directory":
-                                    DoByDirectoryEditMode(curChangeSet.changeSetMgr, it, FilePath);
-                                    break;
-                                case "file":
-                                    DoByFileEditMode(curChangeSet.changeSetMgr, it, FilePath);
-                                    break;
-                            }
-
-                            //Update the progress bar...
-                            GUIRendering.UpdateChangesetProgressBar(curChangeSet);
+                            case "directory":
+                                DoByDirectoryEditMode(curChangeSet.changeSetMgr, it, FilePath);
+                                break;
+                            case "file":
+                                DoByFileEditMode(curChangeSet.changeSetMgr, it, FilePath);
+                                break;
                         }
 
-                        watch.Stop();
-                        TimeSpan elapsedTime = watch.Elapsed;
-                        Main.CurrentForm.ChangeLabelText(String.Format("Updates completed in: {0}:{1}:{2}.", elapsedTime.Hours, elapsedTime.Minutes, elapsedTime.Seconds));
+                        //Update the progress bar...
+                        GUIRendering.UpdateChangesetProgressBar(curChangeSet);
+                    }
 
-                        /* Always force integrity checks for now, until the above is fixed. Async downloads should be queued and waited for as a list of tasks, 
+                    //change the changeset type for the download queue
+                    curChangeSet.changeSetType = ChangeSets.CHANGESET_TYPES.CHANGESET_DL_QUEUE;
+                    var dlChSet = ChangeSets.getAppropriateListForType(ChangeSets.CHANGESET_TYPES.CHANGESET_DL_QUEUE);
+
+                    //It would be neater if these two were a single lambda expression, but no clue on how that's done in c#, only c++
+                    foreach (var item in dlChSet.Select((value, i) => new { i, value }))
+                    {
+                        var it = item.value;
+                        curChangeSet.curDataChecked = item.i;
+
+                        WebClient clientNew = await DownloadFile(MainDownloadDir, it.filename, IniFileMgr.prod_channel);
+                        clientNew.DownloadProgressChanged += (sender1, e1) =>
+                        {
+                            GUIRendering.UpdateDownloadProgress(e1, it.filename);
+                        };
+                        clientNew.DownloadFileCompleted += (o, e) =>
+                        {
+                            Main.CurrentForm.ChangeLabelText("Downloaded File: \n" + it.filename);
+                            //Evaluate if we should apply compression, this is kind of a lazy approach really, but it's simple I guess...
+                            bool shouldApplyCompType = curChangeSet.changeSetMgr.DoesFileHaveCompression(it);
+
+                            if (shouldApplyCompType)
+                            {
+                                //Decompress it and delete it after
+                                invokeDecompressFile(it.filename);
+                                Main.CurrentForm.ChangeLabelText("Decompressed File: \n" + it.filename);
+                            }
+
+                        };
+                        clientNew.Dispose();
+
+                        //Update the progress bar...
+                        GUIRendering.UpdateChangesetProgressBar(curChangeSet);
+                    }
+
+                    watch.Stop();
+                    TimeSpan elapsedTime = watch.Elapsed;
+                    Main.CurrentForm.ChangeLabelText($"Updates completed in: {elapsedTime.Hours}:{elapsedTime.Minutes}:{elapsedTime.Seconds}");
+
+                    /* Always force integrity checks for now, until the above is fixed. Async downloads should be queued and waited for as a list of tasks, 
                          * right now it's doing more than one download at once which causes this behaviour where it falsely completes integrity checks. */
 
-                        IniFileMgr.getIniFileMgrConfigPtr()["General"]["completedintegritychecks"].BoolValue = false; 
-                        IniFileMgr.SaveConfigFile();
-                    }).Start();
+                    IniFileMgr.getIniFileMgrConfigPtr()["General"]["completedintegritychecks"].BoolValue = false;
+                    IniFileMgr.SaveConfigFile();
                 }
                 catch (Exception ex)
                 {
@@ -389,7 +401,7 @@ namespace Nightfire_Source_Updater_Client
             }
         }
 
-        public void beginIntegrityChecks()
+        public async Task beginIntegrityChecks()
         {
             var xmlFuncs = new XMLMgr();
             string outID, outVersion;
@@ -397,7 +409,7 @@ namespace Nightfire_Source_Updater_Client
 
             if (outID.Length != 0)
             {
-                DownloadChangeSetFileAndBeginChecks("integrity.xml", ChangeSets.CHANGESET_TYPES.CHANGESET_INTEGRITY_CURRENT);
+                await DownloadChangeSetFileAndBeginChecks("integrity.xml", ChangeSets.CHANGESET_TYPES.CHANGESET_INTEGRITY_CURRENT);
                 return;
             }
             return;
@@ -406,20 +418,22 @@ namespace Nightfire_Source_Updater_Client
         //Once it's downloaded
         //Download the latest integrity.xml file from the server
         //Start downloading all the files but verify integrity while going through the changeset so we don't download stuff that isn't needed
-        public void DownloadChangeSetFileAndBeginChecks(string filename, ChangeSets.CHANGESET_TYPES type)
+        public async Task<WebClient> DownloadChangeSetFileAndBeginChecks(string filename, ChangeSets.CHANGESET_TYPES type)
         {
-            WebClient client = DownloadFile(MainDownloadDir, $"{IniFileMgr.prod_channel}-changesets/{filename}", IniFileMgr.prod_channel, true); //Download it
+            WebClient client = await DownloadFile(MainDownloadDir, $"{IniFileMgr.prod_channel}-changesets/{filename}", IniFileMgr.prod_channel, true); //Download it
             client.DownloadProgressChanged += (o, e) =>
             {
                 GUIRendering.UpdateDownloadProgress(e, $"{IniFileMgr.prod_channel}-changesets/{filename}");
             };
-            client.DownloadFileCompleted += (o, e) =>
+            client.DownloadFileCompleted += async(o, e) =>
             {
-                readChangesetAndBeginDownloading(filename, type);
+                await readChangesetAndBeginDownloading(filename, type);
             };
+            await Task.FromResult(0);
+            return client;
         }
 
-        public WebClient DownloadFile(string toMainTreeDir, string netFilePath, string channel = "", bool fromMainDir = false)
+        public async Task<WebClient> DownloadFile(string toMainTreeDir, string netFilePath, string channel = "", bool fromMainDir = false)
         {
             string fullDlPath = netFilePath;
             fullDlPath = netFilePath.Replace("nightfiresource/", "");
@@ -442,6 +456,7 @@ namespace Nightfire_Source_Updater_Client
             if (Program.IsDebugRelease)
                 Console.WriteLine($"Downloading {netFilePath}...");
 
+            await Task.FromResult(0);
             return client;
         }
 

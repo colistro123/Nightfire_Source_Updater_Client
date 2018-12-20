@@ -41,7 +41,7 @@ namespace Nightfire_Source_Updater_Client
                         string pathExe = Path.GetFullPath(path + "\\Steam.exe");
                         if (!File.Exists(pathExe))
                         {
-                            DialogResult dialogResult = MessageBox.Show(String.Format("Couldn't find a valid Steam.exe in {0}, please provide the correct path to your Steam folder.", path),
+                            DialogResult dialogResult = MessageBox.Show($"Couldn't find a valid Steam.exe in {path}, please provide the correct path to your Steam folder.",
                                 "Nightfire: Source Updater", MessageBoxButtons.OKCancel, MessageBoxIcon.None,
                                 MessageBoxDefaultButton.Button1, (MessageBoxOptions)0x40000);
 
